@@ -59,6 +59,14 @@ void PopulationDensityFilter::filter(void) {
     const double POPULATION_THRESHOLD = config->get<double>("lengthFilter.populationThreshold");
     const double BETA = config->get<double>("lengthFilter.beta");
 
+    // Define the polyline coordinates
+    std::vector<std::pair<double, double>> polyline = {
+        {6.757073214445597, 45.63389781236731},
+        {7.77696308688715, 46.40882672633916},
+        {8.884858310501727, 46.7384075049232},
+        {10.113945376755822, 46.821998005145986}
+    };
+
     // iterate over edges
     Graph& graph = *_baseTopo->getGraph();
     auto& nodeGeoNodeMap = *_baseTopo->getNodeMap();
@@ -68,6 +76,32 @@ void PopulationDensityFilter::filter(void) {
         CityNode* n1 = dynamic_cast<CityNode*>(ptr.get());
         SeaCableLandingPoint* n2 = dynamic_cast<SeaCableLandingPoint*>(ptr.get());
         return n1 != nullptr || n2 != nullptr;
+    };
+
+    // Helper function to check if two line segments intersect
+    auto doLineSegmentsIntersect = [](double x1, double y1, double x2, double y2,
+                                     double x3, double y3, double x4, double y4) -> bool {
+        double denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (std::abs(denom) < 1e-8) return false;
+
+        double ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+        double ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+
+        return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+    };
+
+    // Helper function to check if an edge intersects with the polyline
+    auto intersectsPolyline = [&](const GeographicPosition& p1, const GeographicPosition& p2) -> bool {
+        for (size_t i = 0; i < polyline.size() - 1; i++) {
+            if (doLineSegmentsIntersect(
+                p1.lon(), p1.lat(),
+                p2.lon(), p2.lat(),
+                polyline[i].first, polyline[i].second,
+                polyline[i + 1].first, polyline[i + 1].second)) {
+                return true;
+            }
+        }
+        return false;
     };
 
     for (ListGraph::EdgeIt it(graph); it != INVALID; ++it) {
@@ -80,8 +114,13 @@ void PopulationDensityFilter::filter(void) {
         if (isValidNode(nd1) && isValidNode(nd2)) {
             GeographicPosition p1(nd1->lat(), nd1->lon());
             GeographicPosition p2(nd2->lat(), nd2->lon());
+    
+            // Check if edge crosses the polyline
+            if (intersectsPolyline(p1, p2)) {
+                edges_to_delete.push_back(it);
+                continue;
+            }
 
-            // escape edges below specific length treshold
             double c = GeometricHelpers::sphericalDist(p1, p2);
             double c_km = GeometricHelpers::sphericalDistToKM(c);
             if (c_km < MIN_LENGTH) {
@@ -138,13 +177,23 @@ void PopulationDensityFilter::filter(void) {
 
 void PopulationDensityFilter::filterByLength(void) {
     using namespace lemon;
+    
     std::unique_ptr<InternetUsageStatistics> inetStat(new InternetUsageStatistics(PredefinedValues::dbFilePath()));
-
-    // crucial parameters
     std::unique_ptr<Config> config(new Config);
     const double MIN_LENGTH = config->get<double>("lengthFilter.minLength");
 
-    // iterate over edges
+    // Define the polyline coordinates
+    std::vector<std::pair<double, double>> polyline = {
+        {6.757073214445597, 45.63389781236731},
+        {7.77696308688715, 46.40882672633916},
+        {8.884858310501727, 46.7384075049232},
+        {10.113945376755822, 46.821998005145986}
+    };
+    /*     std::vector<std::pair<double, double>> polyline = {
+        {-4.565465879569274, 49.557930926796246},
+        {42.12246917568103, 49.00009860160387},
+    }; */
+
     Graph& graph = *_baseTopo->getGraph();
     auto& nodeGeoNodeMap = *_baseTopo->getNodeMap();
     EdgeList edges_to_delete;
@@ -160,16 +209,47 @@ void PopulationDensityFilter::filterByLength(void) {
         return n1 != nullptr;
     };
 
+    //check if two line segments intersect
+    auto doLineSegmentsIntersect = [](double x1, double y1, double x2, double y2,
+                                     double x3, double y3, double x4, double y4) -> bool {
+        double denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (std::abs(denom) < 1e-8) return false;
+        
+        double ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+        double ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+        
+        return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+    };
+
+    auto intersectsPolyline = [&](const GeographicPosition& p1, const GeographicPosition& p2) -> bool {
+        for (size_t i = 0; i < polyline.size() - 1; i++) {
+            if (doLineSegmentsIntersect(
+                p1.lon(), p1.lat(),
+                p2.lon(), p2.lat(),
+                polyline[i].first, polyline[i].second,
+                polyline[i + 1].first, polyline[i + 1].second
+            )) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     for (ListGraph::EdgeIt it(graph); it != INVALID; ++it) {
         Graph::Node u = graph.u(it);
         Graph::Node v = graph.v(it);
-
         GeographicNode_Ptr nd1 = nodeGeoNodeMap[u];
         GeographicNode_Ptr nd2 = nodeGeoNodeMap[v];
 
         if (isValidNode(nd1) && isValidNode(nd2)) {
             GeographicPosition p1(nd1->lat(), nd1->lon());
-            GeographicPosition p2(nd1->lat(), nd1->lon());
+            GeographicPosition p2(nd2->lat(), nd2->lon()); //Hier war es ursprünglich auf nd1 ebenfalls -> Testen ob wieder zu Ursprung möglich
+            
+            // Check for intersection before calculating internet users
+            if (intersectsPolyline(p1, p2)) {
+                edges_to_delete.push_back(it);
+                continue;
+            }
 
             double amountInetUsers = 0.0;
             if (isCityNode(nd1) && isCityNode(nd2)) {
@@ -184,19 +264,22 @@ void PopulationDensityFilter::filterByLength(void) {
             } else if (isCityNode(nd2)) {
                 std::string nd2c = static_cast<CityNode*>(nd2.get())->country();
                 amountInetUsers += (*inetStat)[nd2c] / 100.0;
-            } else
-                continue;  // < skip, we won't filter edges between landing points
+            } else {
+                continue;  // Skip edges between landing points
+            }
 
-            // escape edges below specific length treshold
             assert(amountInetUsers < 1.0);
             double c = GeometricHelpers::sphericalDist(p1, p2);
             double c_km = GeometricHelpers::sphericalDistToKM(c);
+            
             if (c_km > MIN_LENGTH * (1.0 + amountInetUsers)) {
                 edges_to_delete.push_back(it);
             }
         }
     }
-    // erase edges
-    for (EdgeList::iterator edge = edges_to_delete.begin(); edge != edges_to_delete.end(); ++edge)
+
+    // Erase edges
+    for (EdgeList::iterator edge = edges_to_delete.begin(); edge != edges_to_delete.end(); ++edge) {
         graph.erase(*edge);
+    }
 }

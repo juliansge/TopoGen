@@ -19,9 +19,9 @@ class GeographicPosition {
 
     virtual void setLon(double val) { _longitude = val; }
 
-    double lat() { return _latitude; }
+    double lat() const { return _latitude; }
 
-    double lon() { return _longitude; }
+    double lon() const { return _longitude; }
 
     void setInvalid() { _valid = false; }
 
