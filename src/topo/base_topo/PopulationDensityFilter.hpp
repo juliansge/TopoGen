@@ -31,14 +31,27 @@
 #define POPULATIONDENSITYFILTER_HPP
 
 #include "topo/base_topo/BaseTopology.hpp"
+#include <string>
+#include <vector>
+#include <utility>
 #include <memory>
+
+// Structure to represent a polygon
+struct Polygon {
+    std::vector<std::vector<std::pair<double, double>>> coordinates;
+};
 
 class PopulationDensityFilter;
 typedef std::shared_ptr<PopulationDensityFilter> PopulationDensityFilter_Ptr;
 
 class PopulationDensityFilter {
-   public:
-    PopulationDensityFilter(BaseTopology_Ptr baseTopo);
+public:
+    // Constructor with a default filterFlag value
+    
+    /**********************************************************************
+    SET FILTER FLAG TO 0 FOR NOW MOUNTAIN RANGE FILTERING OR 1 FOR MOUNTAIN RANGE FILTERING
+    ***********************************************************************/
+    PopulationDensityFilter(BaseTopology_Ptr baseTopo, int filterFlag = 0);
 
     // somewhat complex filter algorithm involving bounding box reader and population estimation
     void filter();
@@ -46,10 +59,24 @@ class PopulationDensityFilter {
     // simple filter algorithm, removing edges by weighted max-length
     void filterByLength();
 
-   protected:
-   private:
+protected:
+private:
     std::string _dbFilename;
     BaseTopology_Ptr _baseTopo;
+    int _filterFlag; // Flag to determine which filter to apply
+    std::vector<Polygon> _polygons;
+
+    // Helper function to load polygons from JSON
+    void loadPolygonsFromJSON(const std::string& filename);
+
+    // Helper function to check if a point is inside a polygon
+    bool isPointInPolygon(const std::pair<double, double>& point, const std::vector<std::pair<double, double>>& polygon);
+
+    // Helper function to check if line segments intersect
+    bool doLineSegmentsIntersect(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4);
+
+    // Helper function to check if a line intersects with any polygon
+    bool intersectsAnyPolygon(const GeographicPosition& p1, const GeographicPosition& p2);
 };
 
 #endif
