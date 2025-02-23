@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(topoGen)
 
+find_package(CGAL REQUIRED COMPONENTS Core)
+
 # The version number.
 set (topoGen_VERSION_MAJOR 1)
 set (topoGen_VERSION_MINOR 0)
@@ -33,7 +35,7 @@ configure_file(src/config/Defines.hpp.cmake
 #
 # COMPILER OPTIONS
 #
-set(CMAKE_CXX_FLAGS "-g -Wall -Wextra -Weffc++ -march=native -O3 -std=c++11 -fsanitize=address")
+set(CMAKE_CXX_FLAGS "-g -Wall -Wextra -Weffc++ -march=native -O3 -std=c++14 -fsanitize=address")
 include_directories("${SRCDIR}" "${CMAKE_BINARY_DIR}/src" "/usr/local/include")
 link_directories("/usr/local/lib")
 
